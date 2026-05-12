@@ -6,7 +6,7 @@ const Directory = ({ selectedFolders, setSelectedFolders }) => {
   const [folders, setFolders] = useState([]);
 
   useEffect(() => {
-    fetch("http://localhost:8000/folders")   // ✅ FIXED URL
+    fetch("http://188.166.214.31:8000/folders")   // ✅ FIXED URL
       .then(res => {
         if (!res.ok) throw new Error("Failed to fetch folders");
         return res.json();
