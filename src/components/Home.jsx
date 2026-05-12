@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Summary from "./home/summary";
+// import Summary from "./home/summary";
 import ClientInfo from "./home/ClientInfo";
 import Results from "./home/Result";
 import Directory from "./home/Directory";
@@ -119,7 +119,7 @@ const Home = () => {
             </div>
             <div className="flex flex-col md:flex-row gap-[20px]">
                 <ClientInfo/>
-                <Summary/>
+                {/* <Summary/> */}
             </div>
             <Results 
                 results={results}
