@@ -29,7 +29,7 @@ const Home = () => {
         );
 
         try {
-            const res = await fetch("http://127.0.0.1:8000/face-search", {
+            const res = await fetch("https://facefinder.blinkcreativestudio.com/face-search", {
                 method: "POST",
                 body: formData
             });
