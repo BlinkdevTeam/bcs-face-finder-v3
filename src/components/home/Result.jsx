@@ -2,9 +2,9 @@ const Results = ({ results }) => {
   // Group results by folder_path
   const groupedResults = Array.isArray(results)
     ? results.reduce((acc, item) => {
-        if (!item?.path) return acc;
+        if (!item?.folder_path) return acc;
 
-        const folderPath = item.path.substring(0, item.path.lastIndexOf("/"));
+        const folderPath = item.folder_path.substring(0, item.folder_path.lastIndexOf("/"));
 
         if (!acc[folderPath]) {
           acc[folderPath] = [];
@@ -38,6 +38,16 @@ const Results = ({ results }) => {
 
           <h2 className="text-xl font-semibold text-white">Folders</h2>
         </div>
+
+        {/* No results state */}
+        {Object.keys(groupedResults).length === 0 && (
+          <div className="text-center py-12 text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="mx-auto mb-4 text-gray-600">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <p>No results yet. Upload a photo and search.</p>
+          </div>
+        )}
 
         {/* ALL FOLDER GROUPS */}
         <div className="space-y-6">
@@ -92,7 +102,7 @@ const Results = ({ results }) => {
                     <div key={item.file_id} className="text-center">
                       <div className="w-32 h-32 bg-gray-600 rounded border border-gray-500 overflow-hidden">
                         <img
-                          src={`http://127.0.0.1:8000/image/${item.file_id}`}
+                          src={`https://facefinder.blinkcreativestudio.com/image/${item.file_id}`}
                           className="w-full h-full object-cover"
                           alt={item.file_name}
                         />
@@ -103,6 +113,11 @@ const Results = ({ results }) => {
                         {item.file_name.length > 12
                           ? item.file_name.slice(0, 12) + "..."
                           : item.file_name}
+                      </p>
+
+                      {/* Similarity score */}
+                      <p className="text-indigo-400 text-xs mt-1">
+                        {Math.round(item.similarity * 100)}% match
                       </p>
                     </div>
                   ))}
