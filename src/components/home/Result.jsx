@@ -4,7 +4,7 @@ const Results = ({ results }) => {
     ? results.reduce((acc, item) => {
         if (!item?.folder_path) return acc;
 
-        const folderPath = item.folder_path.substring(0, item.folder_path.lastIndexOf("/"));
+        const folderPath = item.folder_path;
 
         if (!acc[folderPath]) {
           acc[folderPath] = [];
