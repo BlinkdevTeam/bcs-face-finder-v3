@@ -80,7 +80,7 @@ const Results = ({ results }) => {
 
                       {/* Folder name from last 3 levels */}
                       <h3 className="font-semibold text-white">
-                        {path.split("/").slice(-3).join(" / ")}
+                        {path}
                       </h3>
                     </div>
 
