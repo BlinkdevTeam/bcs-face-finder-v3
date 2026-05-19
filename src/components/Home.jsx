@@ -19,11 +19,13 @@ const Home = () => {
     const adminMenuRef = useRef(null);
 
     // Confirmation modal
-    const [confirmModal, setConfirmModal] = useState(null); // { type: 'folders' | 'embeddings' }
+    const [confirmModal, setConfirmModal] = useState(null);
 
-    // Sync states
+    // Streaming progress
     const [syncing, setSyncing] = useState(false);
-    const [syncMessage, setSyncMessage] = useState("");
+    const [syncLogs, setSyncLogs] = useState([]);
+    const [syncDone, setSyncDone] = useState(false);
+    const logsEndRef = useRef(null);
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -35,6 +37,13 @@ const Home = () => {
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
+
+    // Auto scroll logs to bottom
+    useEffect(() => {
+        if (logsEndRef.current) {
+            logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+    }, [syncLogs]);
 
     async function searchFaces() {
         if (!selectedImage || selectedFolders.length === 0) {
@@ -67,40 +76,46 @@ const Home = () => {
         }
     }
 
-    async function handleConfirmSync() {
+    function handleConfirmSync() {
         const type = confirmModal.type;
         setConfirmModal(null);
         setShowAdminMenu(false);
         setSyncing(true);
-        setSyncMessage("");
+        setSyncLogs([]);
+        setSyncDone(false);
 
-        try {
-            const endpoint = type === "folders" ? "/sync-folders" : "/sync-embeddings";
-            const res = await fetch(`${API_URL}${endpoint}`, { method: "POST" });
-            const data = await res.json();
+        const endpoint = type === "folders"
+            ? `${API_URL}/sync-folders-stream`
+            : `${API_URL}/sync-embeddings-stream`;
 
-            if (data.status === "success") {
-                setSyncMessage(type === "folders"
-                    ? "✅ Folders synced successfully! Refreshing..."
-                    : "✅ Face indexing complete!"
-                );
+        const eventSource = new EventSource(endpoint);
+
+        eventSource.onmessage = (e) => {
+            if (e.data === "DONE") {
+                eventSource.close();
+                setSyncDone(true);
+                setSyncing(false);
                 if (type === "folders") {
-                    setTimeout(() => window.location.reload(), 1500);
+                    setSyncLogs(prev => [...prev, "✅ Folders synced! Refreshing in 3 seconds..."]);
+                    setTimeout(() => window.location.reload(), 3000);
                 }
-            } else {
-                setSyncMessage("❌ Sync failed. Please try again.");
+            } else if (e.data.trim() !== "") {
+                setSyncLogs(prev => [...prev, e.data]);
             }
-        } catch (err) {
-            setSyncMessage("❌ Sync failed. Please try again.");
-        } finally {
+        };
+
+        eventSource.onerror = () => {
+            eventSource.close();
             setSyncing(false);
-        }
+            setSyncDone(true);
+            setSyncLogs(prev => [...prev, "❌ Connection lost. Please check the server."]);
+        };
     }
 
     return (
         <div className="custom-container py-[100px] px-[20px] w-auto">
 
-            {/* ⚙️ Admin Gear Icon - top right */}
+            {/* ⚙️ Admin Gear Icon - fixed top right */}
             <div className="fixed top-4 right-4 z-50" ref={adminMenuRef}>
                 <button
                     onClick={() => setShowAdminMenu(prev => !prev)}
@@ -113,7 +128,7 @@ const Home = () => {
                     </svg>
                 </button>
 
-                {/* Dropdown menu */}
+                {/* Dropdown */}
                 {showAdminMenu && (
                     <div className="absolute right-0 mt-2 w-52 bg-gray-800 border border-gray-600 rounded-lg shadow-xl overflow-hidden">
                         <div className="px-4 py-2 border-b border-gray-600">
@@ -163,7 +178,7 @@ const Home = () => {
                         <p className="text-gray-300 text-sm mb-2">
                             {confirmModal.type === "folders"
                                 ? "This will scan the NAS and update the folder structure in the database."
-                                : "This will generate face embeddings for all new photos. This may take a long time depending on the number of photos."
+                                : "This will generate face embeddings for all new photos."
                             }
                         </p>
 
@@ -199,24 +214,64 @@ const Home = () => {
                 </div>
             )}
 
-            {/* Syncing overlay */}
-            {syncing && (
+            {/* Streaming Progress Modal */}
+            {(syncing || (syncDone && syncLogs.length > 0)) && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
-                    <div className="bg-gray-800 border border-gray-600 rounded-xl p-8 flex flex-col items-center gap-4">
-                        <svg className="animate-spin w-10 h-10 text-indigo-400" viewBox="0 0 24 24" fill="none">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                        </svg>
-                        <p className="text-white font-medium">Processing... please wait</p>
-                        <p className="text-gray-400 text-sm text-center">Do not close the browser</p>
-                    </div>
-                </div>
-            )}
+                    <div className="bg-gray-800 border border-gray-600 rounded-xl shadow-2xl w-[90%] max-w-2xl flex flex-col" style={{maxHeight: '80vh'}}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-600">
+                            <div className="flex items-center gap-3">
+                                {syncing ? (
+                                    <svg className="animate-spin w-5 h-5 text-indigo-400" viewBox="0 0 24 24" fill="none">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                                    </svg>
+                                ) : (
+                                    <svg className="w-5 h-5 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M20 6L9 17l-5-5"/>
+                                    </svg>
+                                )}
+                                <h3 className="text-white font-semibold">
+                                    {syncing ? "Processing..." : "Complete!"}
+                                </h3>
+                            </div>
+                            {syncDone && (
+                                <button
+                                    onClick={() => { setSyncLogs([]); setSyncDone(false); }}
+                                    className="text-gray-400 hover:text-white transition-colors text-sm"
+                                >
+                                    Close
+                                </button>
+                            )}
+                        </div>
 
-            {/* Sync message toast */}
-            {syncMessage && !syncing && (
-                <div className="fixed bottom-6 right-6 z-50 bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 shadow-xl">
-                    <p className="text-sm text-white">{syncMessage}</p>
+                        {/* Live logs */}
+                        <div className="flex-1 overflow-y-auto p-4 font-mono text-xs bg-gray-900 rounded-b-xl">
+                            {syncLogs.map((log, i) => (
+                                <div key={i} className={`mb-1 ${
+                                    log.startsWith("✅") ? "text-green-400" :
+                                    log.startsWith("❌") ? "text-red-400" :
+                                    log.startsWith("⚠️") ? "text-yellow-400" :
+                                    log.startsWith("⏳") ? "text-blue-400" :
+                                    log.startsWith("📂") ? "text-indigo-400" :
+                                    log.startsWith("🎉") ? "text-green-300" :
+                                    "text-gray-300"
+                                }`}>
+                                    {log}
+                                </div>
+                            ))}
+                            <div ref={logsEndRef} />
+                        </div>
+
+                        {/* Footer */}
+                        {syncing && (
+                            <div className="px-6 py-3 border-t border-gray-600">
+                                <p className="text-xs text-gray-400 text-center">
+                                    Do not close the browser while processing...
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
