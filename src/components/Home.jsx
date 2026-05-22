@@ -33,6 +33,8 @@ const Home = () => {
     const [syncDone, setSyncDone] = useState(false);
     const logsEndRef = useRef(null);
 
+    const [searching, setSearching] = useState(false);
+
     // Close dropdown when clicking outside
     useEffect(() => {
         function handleClickOutside(e) {
@@ -75,6 +77,9 @@ const Home = () => {
             return;
         }
 
+        setSearching(true);  // ← ADD THIS
+        setResults([]);       // ← ADD THIS (clear old results)
+
         const formData = new FormData();
         formData.append("image", selectedImage);
         formData.append("folder_ids", selectedFolders.map(f => f.id).join(","));
@@ -97,6 +102,8 @@ const Home = () => {
         } catch (err) {
             console.error("Search failed:", err);
             alert("Search failed. Check backend.");
+        } finally {
+            setSearching(false);  // ← ADD THIS
         }
     }
 
@@ -367,12 +374,26 @@ const Home = () => {
                         </div>
                         <button
                             onClick={() => searchFaces()}
-                            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors cursor-pointer bg-[#138a4e] hover:bg-[#05df72] text-white`}
+                            disabled={searching}
+                            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors cursor-pointer bg-[#138a4e] hover:bg-[#05df72] text-white disabled:opacity-60 disabled:cursor-not-allowed`}
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera w-5 h-5">
-                                <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
-                                <circle cx="12" cy="13" r="3"></circle>
-                            </svg>Search
+                            {searching ? (
+                                <>
+                                    <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                                    </svg>
+                                    Searching...
+                                </>
+                            ) : (
+                                <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera w-5 h-5">
+                                        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+                                        <circle cx="12" cy="13" r="3"></circle>
+                                    </svg>
+                                    Search
+                                </>
+                            )}
                         </button>
                     </div>
                     {
