@@ -4,6 +4,8 @@ import Results from "./home/Result";
 import Directory from "./home/Directory";
 import SearchViaPhoto from "./home/SearchViaPhoto";
 import SearchViaName from "./home/SearchViaName";
+import FolderNode from "./home/FolderNode";
+import buildFolderTree from "./functions/buildFoldertree";
 
 const API_URL = "https://facefinder.blinkcreativestudio.com";
 
@@ -20,6 +22,10 @@ const Home = () => {
 
     // Confirmation modal
     const [confirmModal, setConfirmModal] = useState(null);
+
+    // Folder selection for indexing
+    const [allFolders, setAllFolders] = useState([]);
+    const [indexFolders, setIndexFolders] = useState([]); // selected folders for indexing
 
     // Streaming progress
     const [syncing, setSyncing] = useState(false);
@@ -44,6 +50,24 @@ const Home = () => {
             logsEndRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [syncLogs]);
+
+    // Fetch all folders for indexing modal
+    useEffect(() => {
+        fetch(`${API_URL}/folders`)
+            .then(res => res.json())
+            .then(data => {
+                const nested = buildFolderTree(data.folders);
+                setAllFolders(nested);
+            })
+            .catch(err => console.error("Failed to fetch folders:", err));
+    }, []);
+
+    const toggleIndexFolder = (folder) => {
+        setIndexFolders(prev => {
+            const exists = prev.find(f => f.id === folder.id);
+            return exists ? prev.filter(f => f.id !== folder.id) : [...prev, folder];
+        });
+    };
 
     async function searchFaces() {
         if (!selectedImage || selectedFolders.length === 0) {
@@ -84,9 +108,15 @@ const Home = () => {
         setSyncLogs([]);
         setSyncDone(false);
 
-        const endpoint = type === "folders"
-            ? `${API_URL}/sync-folders-stream`
-            : `${API_URL}/sync-embeddings-stream`;
+        let endpoint;
+        if (type === "folders") {
+            endpoint = `${API_URL}/sync-folders-stream`;
+        } else {
+            const folderIds = indexFolders.map(f => f.id).join(",");
+            endpoint = folderIds
+                ? `${API_URL}/sync-embeddings-stream?folder_ids=${folderIds}`
+                : `${API_URL}/sync-embeddings-stream`;
+        }
 
         const eventSource = new EventSource(endpoint);
 
@@ -144,7 +174,7 @@ const Home = () => {
                             Sync Folders
                         </button>
                         <button
-                            onClick={() => { setConfirmModal({ type: "embeddings" }); setShowAdminMenu(false); }}
+                            onClick={() => { setIndexFolders([]); setConfirmModal({ type: "embeddings" }); setShowAdminMenu(false); }}
                             className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
                         >
                             <svg className="w-4 h-4 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -175,19 +205,47 @@ const Home = () => {
                             </h3>
                         </div>
 
-                        <p className="text-gray-300 text-sm mb-2">
-                            {confirmModal.type === "folders"
-                                ? "This will scan the NAS and update the folder structure in the database."
-                                : "This will generate face embeddings for all new photos."
-                            }
-                        </p>
-
-                        {confirmModal.type === "embeddings" && (
-                            <div className="bg-yellow-900 border border-yellow-600 rounded-lg p-3 mb-4">
-                                <p className="text-yellow-300 text-xs">
-                                    ⚠️ <strong>Note:</strong> Face indexing can take several minutes to hours depending on the number of new photos. Do not close the browser while indexing.
+                        {confirmModal.type === "folders" ? (
+                            <p className="text-gray-300 text-sm mb-4">
+                                This will scan the NAS and update the folder structure in the database.
+                            </p>
+                        ) : (
+                            <>
+                                <p className="text-gray-300 text-sm mb-3">
+                                    Select folders to index. Leave all unchecked to index everything.
                                 </p>
-                            </div>
+
+                                {/* Folder tree for selection */}
+                                <div className="max-h-48 overflow-y-auto bg-gray-900 rounded-lg p-2 border border-gray-600 mb-3">
+                                    {allFolders.map(folder => (
+                                        <FolderNode
+                                            key={folder.id}
+                                            folder={folder}
+                                            onToggleSelect={toggleIndexFolder}
+                                            selectedFolderIds={indexFolders.map(f => f.id)}
+                                        />
+                                    ))}
+                                </div>
+
+                                {/* Selected folders display */}
+                                <div className="mb-3">
+                                    {indexFolders.length > 0 ? (
+                                        <p className="text-xs text-indigo-400">
+                                            Indexing: {indexFolders.map(f => f.name).join(", ")}
+                                        </p>
+                                    ) : (
+                                        <p className="text-xs text-gray-400">
+                                            No folders selected → will index all unindexed photos
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="bg-yellow-900 border border-yellow-600 rounded-lg p-3 mb-4">
+                                    <p className="text-yellow-300 text-xs">
+                                        ⚠️ <strong>Note:</strong> Face indexing can take several minutes to hours. Do not close the browser while indexing.
+                                    </p>
+                                </div>
+                            </>
                         )}
 
                         <p className="text-gray-400 text-sm mb-6">Are you sure you want to proceed?</p>
