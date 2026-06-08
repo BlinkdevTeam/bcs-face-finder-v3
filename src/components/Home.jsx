@@ -35,6 +35,9 @@ const Home = () => {
 
     const [searching, setSearching] = useState(false);
 
+
+    const [searchQuery, setSearchQuery] = useState("");
+
     // Close dropdown when clicking outside
     useEffect(() => {
         function handleClickOutside(e) {
@@ -104,6 +107,35 @@ const Home = () => {
             alert("Search failed. Check backend.");
         } finally {
             setSearching(false);  // ← ADD THIS
+        }
+    }
+
+
+    async function searchByName() {
+        if (!searchQuery.trim() || selectedFolders.length === 0) {
+            alert("Enter a name and select at least one folder");
+            return;
+        }
+
+        setSearching(true);
+        setResults([]);
+
+        try {
+            const folderIds = selectedFolders.map(f => f.id).join(",");
+            const res = await fetch(
+                `${API_URL}/search-by-name?query=${encodeURIComponent(searchQuery)}&folder_ids=${folderIds}`
+            );
+
+            if (!res.ok) throw new Error("Search failed");
+
+            const data = await res.json();
+            setResults(data.matches || []);
+
+        } catch (err) {
+            console.error("Search failed:", err);
+            alert("Search failed. Check backend.");
+        } finally {
+            setSearching(false);
         }
     }
 
@@ -345,7 +377,7 @@ const Home = () => {
                     <div className="flex justify-between gap-[20px] pb-[20px] px-12">
                         <div className="flex gap-[20px]">
                             <button
-                                onClick={() => setSearchMethod('name')}
+                                onClick={() => searchMethod === 'photo' ? searchFaces() : searchByName()}
                                 className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors cursor-pointer ${
                                     searchMethod === 'name'
                                     ? 'bg-indigo-600 text-white'
@@ -404,7 +436,10 @@ const Home = () => {
                                 setSelectedImage={setSelectedImage}
                             />
                             :
-                            <SearchViaName />
+                            <SearchViaName
+                                searchQuery={searchQuery}
+                                setSearchQuery={setSearchQuery}
+                            />
                     }
                 </div>
                 <div className="bg-gray-800 rounded-lg shadow-2xl p-6 border border-gray-700 w-[100%] lg:w-[30%] mb-6 h-auto">
