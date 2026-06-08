@@ -377,7 +377,7 @@ const Home = () => {
                     <div className="flex justify-between gap-[20px] pb-[20px] px-12">
                         <div className="flex gap-[20px]">
                             <button
-                                onClick={() => searchMethod === 'photo' ? searchFaces() : searchByName()}
+                                onClick={() => setSearchMethod('name')}
                                 className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors cursor-pointer ${
                                     searchMethod === 'name'
                                     ? 'bg-indigo-600 text-white'
@@ -405,7 +405,7 @@ const Home = () => {
                             </button>
                         </div>
                         <button
-                            onClick={() => searchFaces()}
+                            onClick={() => searchMethod === 'photo' ? searchFaces() : searchByName()}
                             disabled={searching}
                             className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-colors cursor-pointer bg-[#138a4e] hover:bg-[#05df72] text-white disabled:opacity-60 disabled:cursor-not-allowed`}
                         >
