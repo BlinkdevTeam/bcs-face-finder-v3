@@ -12,7 +12,7 @@ const buildFolderTree = (folders) => {
             map[folder.parent_id]?.children.push(map[folder.id]);
         }
     });
-    console.log("map", map)
+    // console.log("map", map)
     return roots;
 }
 
