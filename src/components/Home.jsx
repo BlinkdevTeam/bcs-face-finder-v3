@@ -25,17 +25,16 @@ const Home = () => {
 
     // Folder selection for indexing
     const [allFolders, setAllFolders] = useState([]);
-    const [indexFolders, setIndexFolders] = useState([]); // selected folders for indexing
+    const [indexFolders, setIndexFolders] = useState([]);
 
-    // Streaming progress
+    // Sync status
     const [syncing, setSyncing] = useState(false);
-    const [syncLogs, setSyncLogs] = useState([]);
+    const [syncMessage, setSyncMessage] = useState("");
     const [syncDone, setSyncDone] = useState(false);
-    const logsEndRef = useRef(null);
+    const [syncType, setSyncType] = useState(null);
+    const pollRef = useRef(null);
 
     const [searching, setSearching] = useState(false);
-
-
     const [searchQuery, setSearchQuery] = useState("");
 
     // Close dropdown when clicking outside
@@ -49,13 +48,6 @@ const Home = () => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Auto scroll logs to bottom
-    useEffect(() => {
-        if (logsEndRef.current) {
-            logsEndRef.current.scrollIntoView({ behavior: "smooth" });
-        }
-    }, [syncLogs]);
-
     // Fetch all folders for indexing modal
     useEffect(() => {
         fetch(`${API_URL}/folders`)
@@ -65,6 +57,13 @@ const Home = () => {
                 setAllFolders(nested);
             })
             .catch(err => console.error("Failed to fetch folders:", err));
+    }, []);
+
+    // Cleanup poll on unmount
+    useEffect(() => {
+        return () => {
+            if (pollRef.current) clearInterval(pollRef.current);
+        };
     }, []);
 
     const toggleIndexFolder = (folder) => {
@@ -80,8 +79,8 @@ const Home = () => {
             return;
         }
 
-        setSearching(true);  // ← ADD THIS
-        setResults([]);       // ← ADD THIS (clear old results)
+        setSearching(true);
+        setResults([]);
 
         const formData = new FormData();
         formData.append("image", selectedImage);
@@ -106,10 +105,9 @@ const Home = () => {
             console.error("Search failed:", err);
             alert("Search failed. Check backend.");
         } finally {
-            setSearching(false);  // ← ADD THIS
+            setSearching(false);
         }
     }
-
 
     async function searchByName() {
         if (!searchQuery.trim() || selectedFolders.length === 0) {
@@ -139,49 +137,68 @@ const Home = () => {
         }
     }
 
-    function handleConfirmSync() {
+    async function handleConfirmSync() {
         const type = confirmModal.type;
         setConfirmModal(null);
         setShowAdminMenu(false);
         setSyncing(true);
-        setSyncLogs([]);
         setSyncDone(false);
+        setSyncMessage("⏳ Starting...");
+        setSyncType(type);
 
-        let endpoint;
-        if (type === "folders") {
-            endpoint = `${API_URL}/sync-folders-stream`;
-        } else {
-            const folderIds = indexFolders.map(f => f.id).join(",");
-            const baseEndpoint = confirmModal.type === "embeddings-batch"
-                ? `${API_URL}/sync-embeddings-stream-batch`
-                : `${API_URL}/sync-embeddings-stream`;
-            endpoint = folderIds
-                ? `${baseEndpoint}?folder_ids=${folderIds}`
-                : baseEndpoint;
-        }
-
-        const eventSource = new EventSource(endpoint);
-
-        eventSource.onmessage = (e) => {
-            if (e.data === "DONE") {
-                eventSource.close();
-                setSyncDone(true);
-                setSyncing(false);
-                if (type === "folders") {
-                    setSyncLogs(prev => [...prev, "✅ Folders synced! Refreshing in 3 seconds..."]);
-                    setTimeout(() => window.location.reload(), 3000);
-                }
-            } else if (e.data.trim() !== "") {
-                setSyncLogs(prev => [...prev, e.data]);
+        try {
+            if (type === "folders") {
+                await fetch(`${API_URL}/sync-folders-start`, { method: "POST" });
+                startPolling("folders");
+            } else if (type === "embeddings") {
+                const folderIds = indexFolders.map(f => f.id).join(",");
+                const url = folderIds
+                    ? `${API_URL}/sync-embeddings-start?folder_ids=${folderIds}&batch_size=1`
+                    : `${API_URL}/sync-embeddings-start?batch_size=1`;
+                await fetch(url, { method: "POST" });
+                startPolling("embeddings");
+            } else if (type === "embeddings-batch") {
+                const folderIds = indexFolders.map(f => f.id).join(",");
+                const url = folderIds
+                    ? `${API_URL}/sync-embeddings-start?folder_ids=${folderIds}&batch_size=3`
+                    : `${API_URL}/sync-embeddings-start?batch_size=3`;
+                await fetch(url, { method: "POST" });
+                startPolling("embeddings");
             }
-        };
-
-        eventSource.onerror = () => {
-            eventSource.close();
+        } catch (err) {
             setSyncing(false);
             setSyncDone(true);
-            setSyncLogs(prev => [...prev, "❌ Connection lost. Please check the server."]);
-        };
+            setSyncMessage("❌ Failed to start. Please try again.");
+        }
+    }
+
+    function startPolling(statusType) {
+        if (pollRef.current) clearInterval(pollRef.current);
+
+        pollRef.current = setInterval(async () => {
+            try {
+                const endpoint = statusType === "folders"
+                    ? `${API_URL}/sync-folders-status`
+                    : `${API_URL}/sync-embeddings-status`;
+
+                const res = await fetch(endpoint);
+                const data = await res.json();
+
+                setSyncMessage(data.message);
+
+                if (data.done) {
+                    clearInterval(pollRef.current);
+                    setSyncing(false);
+                    setSyncDone(true);
+
+                    if (statusType === "folders" && !data.error) {
+                        setTimeout(() => window.location.reload(), 2000);
+                    }
+                }
+            } catch (err) {
+                console.error("Polling error:", err);
+            }
+        }, 3000);
     }
 
     return (
@@ -267,8 +284,6 @@ const Home = () => {
                                 <p className="text-gray-300 text-sm mb-3">
                                     Select folders to index. Leave all unchecked to index everything.
                                 </p>
-
-                                {/* Folder tree for selection */}
                                 <div className="max-h-48 overflow-y-auto bg-gray-900 rounded-lg p-2 border border-gray-600 mb-3">
                                     {allFolders.map(folder => (
                                         <FolderNode
@@ -279,8 +294,6 @@ const Home = () => {
                                         />
                                     ))}
                                 </div>
-
-                                {/* Selected folders display */}
                                 <div className="mb-3">
                                     {indexFolders.length > 0 ? (
                                         <p className="text-xs text-indigo-400">
@@ -292,10 +305,9 @@ const Home = () => {
                                         </p>
                                     )}
                                 </div>
-
                                 <div className="bg-yellow-900 border border-yellow-600 rounded-lg p-3 mb-4">
                                     <p className="text-yellow-300 text-xs">
-                                        ⚠️ <strong>Note:</strong> Face indexing can take several minutes to hours. Do not close the browser while indexing.
+                                        ⚠️ <strong>Note:</strong> Face indexing can take several minutes to hours. You can close the browser — indexing continues on the server.
                                     </p>
                                 </div>
                             </>
@@ -325,63 +337,59 @@ const Home = () => {
                 </div>
             )}
 
-            {/* Streaming Progress Modal */}
-            {(syncing || (syncDone && syncLogs.length > 0)) && (
+            {/* Sync Progress Modal */}
+            {(syncing || syncDone) && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
-                    <div className="bg-gray-800 border border-gray-600 rounded-xl shadow-2xl w-[90%] max-w-2xl flex flex-col" style={{maxHeight: '80vh'}}>
-                        {/* Header */}
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-600">
-                            <div className="flex items-center gap-3">
-                                {syncing ? (
-                                    <svg className="animate-spin w-5 h-5 text-indigo-400" viewBox="0 0 24 24" fill="none">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                                    </svg>
-                                ) : (
-                                    <svg className="w-5 h-5 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M20 6L9 17l-5-5"/>
-                                    </svg>
-                                )}
-                                <h3 className="text-white font-semibold">
-                                    {syncing ? "Processing..." : "Complete!"}
-                                </h3>
-                            </div>
+                    <div className="bg-gray-800 border border-gray-600 rounded-xl shadow-2xl p-8 w-[90%] max-w-md flex flex-col items-center gap-4">
+
+                        {syncing ? (
+                            <svg className="animate-spin w-10 h-10 text-indigo-400" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                            </svg>
+                        ) : (
+                            <svg className="w-10 h-10 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                        )}
+
+                        <p className="text-white font-medium text-center">
+                            {syncing ? "Processing..." : "Complete!"}
+                        </p>
+
+                        <p className={`text-sm text-center ${
+                            syncMessage.startsWith("✅") ? "text-green-400" :
+                            syncMessage.startsWith("❌") ? "text-red-400" :
+                            syncMessage.startsWith("⚠️") ? "text-yellow-400" :
+                            "text-gray-300"
+                        }`}>
+                            {syncMessage}
+                        </p>
+
+                        {syncing && (
+                            <p className="text-xs text-gray-500 text-center">
+                                You can close this window — the process continues on the server.
+                            </p>
+                        )}
+
+                        <div className="flex gap-3">
+                            {syncing && (
+                                <button
+                                    onClick={() => { setSyncing(false); setSyncDone(false); if (pollRef.current) clearInterval(pollRef.current); }}
+                                    className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm transition-colors"
+                                >
+                                    Hide
+                                </button>
+                            )}
                             {syncDone && (
                                 <button
-                                    onClick={() => { setSyncLogs([]); setSyncDone(false); }}
-                                    className="text-gray-400 hover:text-white transition-colors text-sm"
+                                    onClick={() => { setSyncing(false); setSyncDone(false); }}
+                                    className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm transition-colors"
                                 >
                                     Close
                                 </button>
                             )}
                         </div>
-
-                        {/* Live logs */}
-                        <div className="flex-1 overflow-y-auto p-4 font-mono text-xs bg-gray-900 rounded-b-xl">
-                            {syncLogs.map((log, i) => (
-                                <div key={i} className={`mb-1 ${
-                                    log.startsWith("✅") ? "text-green-400" :
-                                    log.startsWith("❌") ? "text-red-400" :
-                                    log.startsWith("⚠️") ? "text-yellow-400" :
-                                    log.startsWith("⏳") ? "text-blue-400" :
-                                    log.startsWith("📂") ? "text-indigo-400" :
-                                    log.startsWith("🎉") ? "text-green-300" :
-                                    "text-gray-300"
-                                }`}>
-                                    {log}
-                                </div>
-                            ))}
-                            <div ref={logsEndRef} />
-                        </div>
-
-                        {/* Footer */}
-                        {syncing && (
-                            <div className="px-6 py-3 border-t border-gray-600">
-                                <p className="text-xs text-gray-400 text-center">
-                                    Do not close the browser while processing...
-                                </p>
-                            </div>
-                        )}
                     </div>
                 </div>
             )}
