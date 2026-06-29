@@ -153,7 +153,7 @@ const Results = ({ results }) => {
                     <div key={item.file_id} className="text-center">
                       <div className="w-32 h-32 bg-gray-600 rounded border border-gray-500 overflow-hidden">
                         <img
-                          src={`${API_URL}/image/${item.file_id}`}
+                          src={`${API_URL}/thumbnail/${item.file_id}`}
                           className="w-full h-full object-cover"
                           alt={item.file_name}
                         />
