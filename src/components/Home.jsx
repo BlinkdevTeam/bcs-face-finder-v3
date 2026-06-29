@@ -248,9 +248,8 @@ const Home = () => {
                             Index Faces
                         </button>
                         <button
-                            // disabled
                             onClick={() => { setIndexFolders([]); setConfirmModal({ type: "embeddings-batch" }); setShowAdminMenu(false); }}
-                            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-500 cursor-not-allowed opacity-50 border-t border-gray-700"
+                            className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors border-t border-gray-700"
                         >
                             <svg className="w-4 h-4 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M12 2a5 5 0 1 0 0 10A5 5 0 0 0 12 2zM4 20c0-4 3.6-7 8-7s8 3 8 7"/>
