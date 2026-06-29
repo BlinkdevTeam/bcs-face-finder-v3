@@ -11,7 +11,7 @@ const SearchViaPhoto = ({preview, setPreview, setSelectedImage}) => {
         "image/webp"
     ];
 
-    const maxSizeMB = 10;
+    const maxSizeMB = 100;
 
     function handleFileChange(e) {
         const selectedFile = e.target.files[0];
