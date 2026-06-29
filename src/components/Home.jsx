@@ -248,7 +248,7 @@ const Home = () => {
                             Index Faces
                         </button>
                         <button
-                            disabled
+                            // disabled
                             onClick={() => { setIndexFolders([]); setConfirmModal({ type: "embeddings-batch" }); setShowAdminMenu(false); }}
                             className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-500 cursor-not-allowed opacity-50 border-t border-gray-700"
                         >
@@ -256,7 +256,7 @@ const Home = () => {
                                 <path d="M12 2a5 5 0 1 0 0 10A5 5 0 0 0 12 2zM4 20c0-4 3.6-7 8-7s8 3 8 7"/>
                             </svg>
                             Index Faces ×3
-                            <span className="ml-auto text-xs bg-gray-700 px-1.5 py-0.5 rounded">4vCPU</span>
+                            <span className="ml-auto text-xs bg-green-700 px-1.5 py-0.5 rounded">4vCPU ✅</span>
                         </button>
                     </div>
                 )}
